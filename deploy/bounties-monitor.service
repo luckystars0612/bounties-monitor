@@ -8,8 +8,8 @@ Type=simple
 User=YOUR_USERNAME
 WorkingDirectory=/opt/bounties-monitor
 
-# Point to your virtual environment python
-ExecStart=/opt/bounties-monitor/venv/bin/python main.py
+# Point to your virtual environment python (using uv's default .venv folder)
+ExecStart=/opt/bounties-monitor/.venv/bin/python main.py
 
 # Restart policy
 Restart=on-failure
