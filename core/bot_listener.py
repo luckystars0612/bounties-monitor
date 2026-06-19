@@ -97,7 +97,7 @@ async def recent_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
             local_time = u.detected_at + timedelta(hours=7)
             # %#m and %#d are Windows-specific single-digit formatting options,
             # but we also support cross-platform replacement for compatibility.
-            ts = local_time.strftime("%Y\\-%#m\\-%#d %H:%M +07")
+            ts = local_time.strftime("%Y\\-%#m\\-%#d %H:%M \\+07")
             
             prog = u.program_name or u.program_handle
             chg_type = u.change_type.upper().replace("_", " ")

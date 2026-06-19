@@ -93,7 +93,7 @@ def format_message(change: ScopeChange) -> str:
     # Convert UTC to UTC+7 (Asia/Ho_Chi_Minh)
     from datetime import timedelta
     local_time = change.detected_at + timedelta(hours=7)
-    ts = local_time.strftime("%Y\\-%#m\\-%#d %H:%M +07")
+    ts = local_time.strftime("%Y\\-%#m\\-%#d %H:%M \\+07")
 
     lines = [
         f"{platform_emoji} *\\[{_escape(platform_label)}\\] {_escape(change_title)}*",
@@ -131,7 +131,7 @@ def format_new_program_message(change: ScopeChange) -> str:
     
     from datetime import timedelta
     local_time = change.detected_at + timedelta(hours=7)
-    ts = local_time.strftime("%Y\\-%#m\\-%#d %H:%M +07")
+    ts = local_time.strftime("%Y\\-%#m\\-%#d %H:%M \\+07")
 
     lines = [
         f"🎉 *New Bug Bounty Program\\!*",
