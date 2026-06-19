@@ -90,10 +90,10 @@ def format_message(change: ScopeChange) -> str:
     change_emoji   = CHANGE_EMOJI.get(change.change_type, "🔔")
     change_title   = CHANGE_TITLE.get(change.change_type, "Update")
 
-    # Windows does not support %-m or %-d. Use %#m and %#d instead, or generic formatting.
-    # To keep it cross-platform and safe, we can use string formatting or replace '-' with '#' on Windows
-    # since we are running on Windows right now.
-    ts = change.detected_at.strftime("%Y\\-%#m\\-%#d %H:%M UTC")
+    # Convert UTC to UTC+7 (Asia/Ho_Chi_Minh)
+    from datetime import timedelta
+    local_time = change.detected_at + timedelta(hours=7)
+    ts = local_time.strftime("%Y\\-%#m\\-%#d %H:%M +07")
 
     lines = [
         f"{platform_emoji} *\\[{_escape(platform_label)}\\] {_escape(change_title)}*",
@@ -128,7 +128,10 @@ def format_new_program_message(change: ScopeChange) -> str:
     """Special formatting for new program notifications."""
     platform_emoji = PLATFORM_EMOJI.get(change.platform, "🔔")
     platform_label = PLATFORM_LABEL.get(change.platform, change.platform.title())
-    ts = change.detected_at.strftime("%Y\\-%#m\\-%#d %H:%M UTC")
+    
+    from datetime import timedelta
+    local_time = change.detected_at + timedelta(hours=7)
+    ts = local_time.strftime("%Y\\-%#m\\-%#d %H:%M +07")
 
     lines = [
         f"🎉 *New Bug Bounty Program\\!*",

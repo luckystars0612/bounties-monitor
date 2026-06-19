@@ -63,7 +63,11 @@ async def recent_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
         "━━━━━━━━━━━━━━━━━━━━━━",
     ]
     for u in updates:
-        ts = u.detected_at.strftime("%m\\-%d %H:%M")
+        # Convert DB datetime (UTC) to UTC+7 (Asia/Ho_Chi_Minh)
+        from datetime import timedelta
+        local_time = u.detected_at + timedelta(hours=7)
+        ts = local_time.strftime("%m\\-%d %H:%M")
+        
         platform = u.platform.title()
         prog = u.program_name or u.program_handle
         chg_type = u.change_type.upper().replace("_", " ")
