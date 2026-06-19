@@ -49,11 +49,12 @@ def _fetch_json(url: str) -> list:
 
 def _parse_scope_item(raw: dict, platform: str, program_handle: str) -> ScopeItem:
     """Convert a raw scope dict into a ScopeItem."""
-    asset_id = raw.get("asset_identifier") or ""
-    instruction = raw.get("instruction") or ""
+    asset_id = raw.get("asset_identifier") or raw.get("target") or raw.get("endpoint") or ""
+    asset_type = raw.get("asset_type") or raw.get("type") or "OTHER"
+    instruction = raw.get("instruction") or raw.get("description") or ""
     return ScopeItem(
         asset_identifier=asset_id.strip(),
-        asset_type=raw.get("asset_type", "OTHER").lower(),
+        asset_type=asset_type.lower(),
         eligible_for_bounty=raw.get("eligible_for_bounty", True),
         eligible_for_submission=raw.get("eligible_for_submission", True),
         max_severity=raw.get("max_severity"),
@@ -101,7 +102,8 @@ def _parse_bugcrowd(data: list) -> list[Program]:
     """Parse Bugcrowd JSON format."""
     programs = []
     for p in data:
-        handle = p.get("handle", "")
+        url = p.get("url") or p.get("program_url") or ""
+        handle = p.get("handle") or (url.rstrip("/").split("/")[-1] if url else "")
         targets = p.get("targets", {})
 
         in_scope = [
@@ -127,7 +129,7 @@ def _parse_bugcrowd(data: list) -> list[Program]:
                 platform="bugcrowd",
                 handle=handle,
                 name=p.get("name", handle),
-                url=p.get("program_url", f"https://bugcrowd.com/{handle}"),
+                url=url or f"https://bugcrowd.com/{handle}",
                 in_scope=in_scope,
                 out_of_scope=out_of_scope,
                 offers_bounties=p.get("offers_bounties", True),
@@ -171,7 +173,7 @@ def _parse_yeswehack(data: list) -> list[Program]:
     """Parse YesWeHack JSON format."""
     programs = []
     for p in data:
-        handle = p.get("slug", p.get("handle", ""))
+        handle = p.get("slug") or p.get("handle") or p.get("id") or ""
         targets = p.get("targets", {})
 
         in_scope = [

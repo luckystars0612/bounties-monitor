@@ -51,8 +51,17 @@ def diff_programs(
     old_map = _scope_map(old.in_scope)
     new_map = _scope_map(new.in_scope)
 
-    added = [item for key, item in new_map.items() if key not in old_map]
-    removed = [item for key, item in old_map.items() if key not in new_map]
+    # If the database had corrupt (empty) asset identifiers or was empty for non-HackerOne platforms
+    # due to the old parser bug, we suppress notifications for this cycle to avoid flooding the user.
+    has_corrupt_old_data = any(not item.asset_identifier for item in old.in_scope) or (
+        old.platform != "hackerone" and not old.in_scope and new.in_scope
+    )
+
+    added = []
+    removed = []
+    if not has_corrupt_old_data:
+        added = [item for key, item in new_map.items() if key not in old_map]
+        removed = [item for key, item in old_map.items() if key not in new_map]
 
     if added and "new_scope" in notify_on:
         changes.append(

@@ -60,6 +60,11 @@ def _escape(text: str) -> str:
     return "".join(f"\\{c}" if c in special else c for c in str(text))
 
 
+def _escape_link(url: str) -> str:
+    """Escape only ) and \\ for Telegram MarkdownV2 links."""
+    return str(url).replace("\\", "\\\\").replace(")", "\\)")
+
+
 def _format_scope_list(scopes: list, header: str, emoji: str = "•") -> str:
     """Format a list of scope items into readable text."""
     if not scopes:
@@ -97,7 +102,7 @@ def format_message(change: ScopeChange) -> str:
 
     lines = [
         f"{platform_emoji} *\\[{_escape(platform_label)}\\] {_escape(change_title)}*",
-        f"📌 [{_escape(change.program_name)}]({_escape(change.program_url)})",
+        f"📌 [{_escape(change.program_name)}]({_escape_link(change.program_url)})",
         "━━━━━━━━━━━━━━━━━━━━━━",
     ]
 
@@ -135,7 +140,7 @@ def format_new_program_message(change: ScopeChange) -> str:
 
     lines = [
         f"🎉 *New Bug Bounty Program\\!*",
-        f"{platform_emoji} *{_escape(platform_label)}* \\— [{_escape(change.program_name)}]({_escape(change.program_url)})",
+        f"{platform_emoji} *{_escape(platform_label)}* \\— [{_escape(change.program_name)}]({_escape_link(change.program_url)})",
         "━━━━━━━━━━━━━━━━━━━━━━",
     ]
 

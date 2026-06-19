@@ -193,6 +193,7 @@ def log_change(
     removed_scopes: list = None,
     old_bounty: str = None,
     new_bounty: str = None,
+    detected_at: datetime = None,
 ) -> DBChangeLog:
     """Persist a detected change to the change log."""
     with get_session() as session:
@@ -207,7 +208,7 @@ def log_change(
             removed_scopes_json=json.dumps(removed_scopes or []),
             old_bounty=old_bounty,
             new_bounty=new_bounty,
-            detected_at=datetime.utcnow(),
+            detected_at=detected_at or datetime.utcnow(),
             notified=False,
         )
         session.add(entry)
@@ -221,7 +222,7 @@ def get_recent_changes(limit: int = 50) -> List[DBChangeLog]:
     with get_session() as session:
         return (
             session.query(DBChangeLog)
-            .order_by(DBChangeLog.detected_at.desc())
+            .order_by(DBChangeLog.detected_at.desc(), DBChangeLog.id.asc())
             .limit(limit)
             .all()
         )
@@ -252,7 +253,25 @@ def get_recent_updates(limit: int = 10) -> List[DBChangeLog]:
     with get_session() as session:
         return (
             session.query(DBChangeLog)
-            .order_by(DBChangeLog.detected_at.desc())
+            .order_by(DBChangeLog.detected_at.desc(), DBChangeLog.id.asc())
+            .limit(limit)
+            .all()
+        )
+
+
+def get_recent_updates_by_platform(platform: str, limit: int = 3) -> List[DBChangeLog]:
+    """Fetch recent change log entries for a specific platform, filtered by scope/program changes."""
+    from core.models import ChangeType
+    with get_session() as session:
+        return (
+            session.query(DBChangeLog)
+            .filter_by(platform=platform)
+            .filter(DBChangeLog.change_type.in_([
+                ChangeType.NEW_SCOPE.value,
+                ChangeType.REMOVED_SCOPE.value,
+                ChangeType.NEW_PROGRAM.value
+            ]))
+            .order_by(DBChangeLog.detected_at.desc(), DBChangeLog.id.asc())
             .limit(limit)
             .all()
         )

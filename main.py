@@ -8,9 +8,15 @@ Usage:
 """
 
 import asyncio
+import io
 import signal
 import sys
 from datetime import datetime
+
+# Force UTF-8 encoding for standard streams on Windows to prevent UnicodeEncodeErrors
+if sys.platform == "win32":
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8")
 
 from apscheduler.schedulers.blocking import BlockingScheduler
 from apscheduler.triggers.interval import IntervalTrigger
@@ -70,10 +76,10 @@ def print_banner() -> None:
 
 # ── Scheduler job ─────────────────────────────────────────────────────────────
 
-def scheduled_job() -> None:
+async def scheduled_job() -> None:
     """Wrapped poll cycle for the scheduler."""
     try:
-        summary = run_poll_cycle()
+        summary = await asyncio.to_thread(run_poll_cycle)
         for platform, stats in summary.items():
             logger.info(
                 f"  {platform}: {stats['programs']} programs, "
@@ -197,13 +203,17 @@ def main() -> None:
     from core.bot_listener import run_bot_listener
     from core.notifier import send_startup_message
 
+    # Global reference to prevent garbage collection of the Telegram application
+    global_bot_app = None
+
     async def main_async():
+        global global_bot_app
         await send_startup_message()
-        await run_bot_listener()
+        global_bot_app = await run_bot_listener()
         
         # Run first cycle immediately on startup
         logger.info("Running initial poll cycle on startup...")
-        scheduled_job()
+        asyncio.create_task(scheduled_job())
 
         # Start scheduler
         logger.info(

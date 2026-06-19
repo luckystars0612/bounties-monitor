@@ -3,6 +3,7 @@ Processor: ties together fetching, diffing, persisting, and notifying.
 Called by the scheduler on each poll cycle.
 """
 
+from datetime import datetime
 from loguru import logger
 
 from core.config import config
@@ -62,7 +63,7 @@ def _db_row_to_program(row, platform: str) -> Program:
     )
 
 
-def process_program(new_program: Program) -> list[ScopeChange]:
+def process_program(new_program: Program, detected_at: datetime = None) -> list[ScopeChange]:
     """
     Process a single program:
     1. Load previous snapshot from DB
@@ -112,6 +113,7 @@ def process_program(new_program: Program) -> list[ScopeChange]:
             ],
             old_bounty=str(change.old_bounty) if change.old_bounty else None,
             new_bounty=str(change.new_bounty) if change.new_bounty else None,
+            detected_at=detected_at,
         )
 
     return changes
@@ -126,9 +128,9 @@ def run_poll_cycle(skip_notifications: bool = False) -> dict:
         Summary dict with counts per platform.
     """
     logger.info("━━━ Starting poll cycle ━━━")
+    poll_start_time = datetime.utcnow()
     summary = {}
     all_changes = []
-
     platform_data = fetch_all_platforms()
 
     for platform, programs in platform_data.items():
@@ -139,7 +141,7 @@ def run_poll_cycle(skip_notifications: bool = False) -> dict:
         platform_changes = []
         for program in programs:
             try:
-                changes = process_program(program)
+                changes = process_program(program, detected_at=poll_start_time)
                 platform_changes.extend(changes)
             except Exception as e:
                 logger.error(

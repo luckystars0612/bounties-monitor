@@ -12,11 +12,12 @@ from telegram.constants import ParseMode
 
 from core.config import config
 from core.database import get_new_programs, get_recent_updates
-from core.notifier import _escape
+from core.notifier import _escape, _escape_link
 
 
 async def start_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Send basic welcome details and help."""
+    logger.info(f"Bot received /start command from chat_id={update.effective_chat.id}")
     help_text = (
         "🤖 *Bounty Scope Monitor Commands:*\n"
         "━━━━━━━━━━━━━━━━━━━━━━\n"
@@ -29,6 +30,7 @@ async def start_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 async def new_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """List 3 recently added programs per platform from the database."""
+    logger.info(f"Bot received /new command from chat_id={update.effective_chat.id}")
     # We will query more programs from DB and filter/group them locally to get 3 per platform
     from core.database import get_new_programs
     programs = get_new_programs(limit=100)
@@ -43,7 +45,7 @@ async def new_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         grouped.setdefault(p.platform, []).append(p)
 
     lines = [
-        "🆕 *Recently Discovered Programs (3 per platform)*",
+        "🆕 *Recently Discovered Programs \\(3 per platform\\)*",
         "━━━━━━━━━━━━━━━━━━━━━━",
     ]
     
@@ -55,36 +57,30 @@ async def new_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             min_b = f"${p.bounty_min:,.0f}" if p.bounty_min else ""
             max_b = f"${p.bounty_max:,.0f}" if p.bounty_max else ""
             bounty_str = f"\\({min_b} ➜ {max_b} {p.bounty_currency}\\)" if (min_b or max_b) else "\\(VDP\\)" if not p.offers_bounties else "\\(Offers Bounty\\)"
-            lines.append(f"  • [{_escape(name)}]({_escape(p.url)}) {bounty_str}")
+            lines.append(f"  • [{_escape(name)}]({_escape_link(p.url)}) {bounty_str}")
 
     await update.message.reply_text("\n".join(lines), parse_mode=ParseMode.MARKDOWN_V2, disable_web_page_preview=True)
 
 
 async def recent_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """List 3 recent scope target changes per platform (excluding simple bounty price changes)."""
-    # Query updates from DB and filter out bounty increases/decreases (ChangeType.BOUNTY_INCREASE / BOUNTY_DECREASE)
-    # and only show scope additions/removals
-    from core.database import get_recent_updates
-    from core.models import ChangeType
+    logger.info(f"Bot received /recent command from chat_id={update.effective_chat.id}")
+    from core.database import get_recent_updates_by_platform
     
-    updates = get_recent_updates(limit=200)
-    # Filter to only keep new_scope and removed_scope
-    scope_updates = [
-        u for u in updates 
-        if u.change_type in (ChangeType.NEW_SCOPE.value, ChangeType.REMOVED_SCOPE.value, ChangeType.NEW_PROGRAM.value)
-    ]
+    grouped = {}
+    has_any = False
+    for platform in config.enabled_platforms:
+        updates = get_recent_updates_by_platform(platform, limit=3)
+        if updates:
+            grouped[platform] = updates
+            has_any = True
 
-    if not scope_updates:
+    if not has_any:
         await update.message.reply_text("❌ No recent scope changes logged in database yet.")
         return
 
-    # Group by platform and take top 3
-    grouped = {}
-    for u in scope_updates:
-        grouped.setdefault(u.platform, []).append(u)
-
     lines = [
-        "🔄 *Recent Scope Updates (3 per platform)*",
+        "🔄 *Recent Scope Updates \\(3 per platform\\)*",
         "━━━━━━━━━━━━━━━━━━━━━━",
     ]
     
@@ -104,7 +100,7 @@ async def recent_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
             detail = u.detail or ""
             
             lines.append(
-                f"  • [{_escape(prog)}]({_escape(u.program_url)}) \\- `{_escape(chg_type)}`\n"
+                f"  • [{_escape(prog)}]({_escape_link(u.program_url)}) \\- `{_escape(chg_type)}`\n"
                 f"    _{_escape(detail)}_ \\(`{ts}`\\)"
             )
 
@@ -113,6 +109,7 @@ async def recent_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
 
 async def status_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Return status information."""
+    logger.info(f"Bot received /status command from chat_id={update.effective_chat.id}")
     platforms = ", ".join(config.enabled_platforms)
     status_msg = (
         "📈 *Bounties Monitor Status*\n"
@@ -125,7 +122,12 @@ async def status_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
     await update.message.reply_text(status_msg, parse_mode=ParseMode.MARKDOWN_V2)
 
 
-async def run_bot_listener() -> None:
+async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Log the error that occurred during update handling."""
+    logger.error(f"Exception while handling Telegram update: {context.error}")
+
+
+async def run_bot_listener():
     """Initialize and run the Telegram bot polling engine."""
     logger.info("Initializing Telegram bot command listener...")
     application = ApplicationBuilder().token(config.telegram_bot_token).build()
@@ -135,9 +137,21 @@ async def run_bot_listener() -> None:
     application.add_handler(CommandHandler("new", new_cmd))
     application.add_handler(CommandHandler("recent", recent_cmd))
     application.add_handler(CommandHandler("status", status_cmd))
+    application.add_error_handler(error_handler)
+
+    # Register command hints in Telegram menu
+    from telegram import BotCommand
+    commands = [
+        BotCommand("start", "Show welcome info & help"),
+        BotCommand("new", "Show recently discovered programs"),
+        BotCommand("recent", "Show recent scope target changes"),
+        BotCommand("status", "View current monitor settings")
+    ]
 
     # Initialize and start polling
     await application.initialize()
+    await application.bot.set_my_commands(commands)
     await application.start()
     await application.updater.start_polling()
     logger.info("Telegram Bot listener started successfully.")
+    return application
