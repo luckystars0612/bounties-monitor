@@ -68,6 +68,11 @@ class Config:
         ]
     )
 
+    # Only process / alert for programs offering monetary bounties (skip VDP)
+    bounties_only: bool = field(
+        default_factory=lambda: os.getenv("BOUNTIES_ONLY", "false").lower() == "true"
+    )
+
     # ── HTTP settings ──────────────────────────────────────────────────────
     request_timeout: int = field(
         default_factory=lambda: int(os.getenv("REQUEST_TIMEOUT", "30"))

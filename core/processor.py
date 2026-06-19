@@ -132,6 +132,10 @@ def run_poll_cycle(skip_notifications: bool = False) -> dict:
     platform_data = fetch_all_platforms()
 
     for platform, programs in platform_data.items():
+        # If bounties_only is enabled, skip programs that do not offer bounty payouts
+        if config.bounties_only:
+            programs = [p for p in programs if p.offers_bounties]
+
         platform_changes = []
         for program in programs:
             try:
