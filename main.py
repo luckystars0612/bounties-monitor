@@ -114,6 +114,57 @@ def main() -> None:
             sys.exit(1)
         return
 
+    # ── CLI Commands: Recent Discovered / Updated Programs ───────────────────
+    if "--recent-new" in args:
+        from core.database import get_new_programs
+        init_db()
+        programs = get_new_programs(limit=15)
+        
+        table = Table(title="[NEW] Recently Discovered Programs (DB Query)", border_style="cyan")
+        table.add_column("Platform", style="bold magenta")
+        table.add_column("Name", style="bold white")
+        table.add_column("Bounty Range", style="bold green")
+        table.add_column("First Seen", style="dim cyan")
+        table.add_column("URL", style="underline blue")
+
+        for p in programs:
+            min_b = f"${p.bounty_min:,.0f}" if p.bounty_min else ""
+            max_b = f"${p.bounty_max:,.0f}" if p.bounty_max else ""
+            bounty_str = f"{min_b} - {max_b} {p.bounty_currency}" if (min_b or max_b) else "VDP" if not p.offers_bounties else "Offers Bounty"
+            
+            table.add_row(
+                p.platform.title(),
+                p.name or p.handle,
+                bounty_str,
+                p.first_seen.strftime("%Y-%m-%d %H:%M"),
+                p.url
+            )
+        console.print(table)
+        return
+
+    if "--recent-updates" in args:
+        from core.database import get_recent_updates
+        init_db()
+        updates = get_recent_updates(limit=15)
+        
+        table = Table(title="[UPDATE] Recent Program Updates (DB Query)", border_style="green")
+        table.add_column("Detected At", style="dim cyan")
+        table.add_column("Platform", style="bold magenta")
+        table.add_column("Program", style="bold white")
+        table.add_column("Change Type", style="bold yellow")
+        table.add_column("Detail", style="white")
+
+        for u in updates:
+            table.add_row(
+                u.detected_at.strftime("%Y-%m-%d %H:%M"),
+                u.platform.title(),
+                u.program_name or u.program_handle,
+                u.change_type.upper().replace("_", " "),
+                u.detail or ""
+            )
+        console.print(table)
+        return
+
     # ── Run-once mode ────────────────────────────────────────────────────────
     if "--run-once" in args:
         console.print("[yellow]Running one poll cycle (notifications skipped)...[/yellow]")
@@ -142,8 +193,18 @@ def main() -> None:
     signal.signal(signal.SIGINT, handle_shutdown)
     signal.signal(signal.SIGTERM, handle_shutdown)
 
-    # Send startup Telegram notification
-    asyncio.run(send_startup_message())
+    # Import bot listener
+    from core.bot_listener import run_bot_listener
+
+    # Create event loop for bot listener and startup notifications
+    try:
+        loop = asyncio.get_event_loop()
+    except RuntimeError:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+
+    loop.run_until_complete(send_startup_message())
+    loop.run_until_complete(run_bot_listener())
 
     # Run first cycle immediately on startup
     logger.info("Running initial poll cycle on startup...")

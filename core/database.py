@@ -234,3 +234,25 @@ def get_all_programs(platform: Optional[str] = None) -> List[DBProgram]:
         if platform:
             q = q.filter_by(platform=platform)
         return q.order_by(DBProgram.platform, DBProgram.name).all()
+
+
+def get_new_programs(limit: int = 10) -> List[DBProgram]:
+    """Fetch recently discovered programs, sorted by discovery date."""
+    with get_session() as session:
+        return (
+            session.query(DBProgram)
+            .order_by(DBProgram.first_seen.desc())
+            .limit(limit)
+            .all()
+        )
+
+
+def get_recent_updates(limit: int = 10) -> List[DBChangeLog]:
+    """Fetch recent change log entries, filtered by program updates."""
+    with get_session() as session:
+        return (
+            session.query(DBChangeLog)
+            .order_by(DBChangeLog.detected_at.desc())
+            .limit(limit)
+            .all()
+        )
