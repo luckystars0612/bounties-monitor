@@ -1,0 +1,29 @@
+[Unit]
+Description=Bounty Scope Monitor - Watches bug bounty platforms for scope changes
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=YOUR_USERNAME
+WorkingDirectory=/opt/bounties-monitor
+
+# Point to your virtual environment python
+ExecStart=/opt/bounties-monitor/venv/bin/python main.py
+
+# Restart policy
+Restart=on-failure
+RestartSec=30
+StartLimitInterval=200
+StartLimitBurst=5
+
+# Logging (view with: journalctl -u bounties-monitor -f)
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=bounties-monitor
+
+# Environment
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=multi-user.target
