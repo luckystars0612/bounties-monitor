@@ -195,40 +195,40 @@ def main() -> None:
 
     # Import bot listener
     from core.bot_listener import run_bot_listener
+    from core.notifier import send_startup_message
 
-    # Create event loop for bot listener and startup notifications
+    async def main_async():
+        await send_startup_message()
+        await run_bot_listener()
+        
+        # Run first cycle immediately on startup
+        logger.info("Running initial poll cycle on startup...")
+        scheduled_job()
+
+        # Start scheduler
+        logger.info(
+            f"Scheduler started. Next poll in {config.poll_interval_minutes} minutes. "
+            f"Press Ctrl+C to stop."
+        )
+
+        from apscheduler.schedulers.asyncio import AsyncIOScheduler
+        async_scheduler = AsyncIOScheduler(timezone="UTC")
+        async_scheduler.add_job(
+            scheduled_job,
+            trigger=IntervalTrigger(minutes=config.poll_interval_minutes),
+            id="poll_cycle",
+            name="Poll bounty-targets-data",
+            max_instances=1,
+            coalesce=True,
+        )
+        async_scheduler.start()
+        
+        # Keep the process alive indefinitely while the loop is running
+        while True:
+            await asyncio.sleep(3600)
+
     try:
-        loop = asyncio.get_event_loop()
-    except RuntimeError:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-
-    loop.run_until_complete(send_startup_message())
-    loop.run_until_complete(run_bot_listener())
-
-    # Run first cycle immediately on startup
-    logger.info("Running initial poll cycle on startup...")
-    scheduled_job()
-
-    # Start scheduler
-    scheduler = BlockingScheduler(timezone="UTC")
-    scheduler.add_job(
-        scheduled_job,
-        trigger=IntervalTrigger(minutes=config.poll_interval_minutes),
-        id="poll_cycle",
-        name="Poll bounty-targets-data",
-        max_instances=1,          # Prevent overlapping runs
-        coalesce=True,
-    )
-
-    next_run = datetime.utcnow()
-    logger.info(
-        f"Scheduler started. Next poll in {config.poll_interval_minutes} minutes. "
-        f"Press Ctrl+C to stop."
-    )
-
-    try:
-        scheduler.start()
+        asyncio.run(main_async())
     except (KeyboardInterrupt, SystemExit):
         logger.info("Bounty Monitor stopped.")
 

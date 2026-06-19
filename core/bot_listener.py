@@ -28,55 +28,85 @@ async def start_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 
 async def new_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """List recently added programs to database."""
-    programs = get_new_programs(limit=10)
+    """List 3 recently added programs per platform from the database."""
+    # We will query more programs from DB and filter/group them locally to get 3 per platform
+    from core.database import get_new_programs
+    programs = get_new_programs(limit=100)
+    
     if not programs:
         await update.message.reply_text("❌ No programs found in database yet.")
         return
 
+    # Group by platform and take top 3
+    grouped = {}
+    for p in programs:
+        grouped.setdefault(p.platform, []).append(p)
+
     lines = [
-        "🆕 *Recently Discovered Programs*",
+        "🆕 *Recently Discovered Programs (3 per platform)*",
         "━━━━━━━━━━━━━━━━━━━━━━",
     ]
-    for p in programs:
-        platform = p.platform.title()
-        name = p.name or p.handle
-        min_b = f"${p.bounty_min:,.0f}" if p.bounty_min else ""
-        max_b = f"${p.bounty_max:,.0f}" if p.bounty_max else ""
-        
-        bounty_str = f"\\({min_b} ➜ {max_b} {p.bounty_currency}\\)" if (min_b or max_b) else "\\(VDP\\)" if not p.offers_bounties else "\\(Offers Bounty\\)"
-        
-        lines.append(f"• *{_escape(platform)}* — [{_escape(name)}]({_escape(p.url)}) {bounty_str}")
+    
+    for platform, p_list in grouped.items():
+        platform_title = platform.title()
+        lines.append(f"\n*📡 {platform_title}*")
+        for p in p_list[:3]:
+            name = p.name or p.handle
+            min_b = f"${p.bounty_min:,.0f}" if p.bounty_min else ""
+            max_b = f"${p.bounty_max:,.0f}" if p.bounty_max else ""
+            bounty_str = f"\\({min_b} ➜ {max_b} {p.bounty_currency}\\)" if (min_b or max_b) else "\\(VDP\\)" if not p.offers_bounties else "\\(Offers Bounty\\)"
+            lines.append(f"  • [{_escape(name)}]({_escape(p.url)}) {bounty_str}")
 
     await update.message.reply_text("\n".join(lines), parse_mode=ParseMode.MARKDOWN_V2, disable_web_page_preview=True)
 
 
 async def recent_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """List recent updates from database change log."""
-    updates = get_recent_updates(limit=10)
-    if not updates:
-        await update.message.reply_text("❌ No recent updates logged in database yet.")
+    """List 3 recent scope target changes per platform (excluding simple bounty price changes)."""
+    # Query updates from DB and filter out bounty increases/decreases (ChangeType.BOUNTY_INCREASE / BOUNTY_DECREASE)
+    # and only show scope additions/removals
+    from core.database import get_recent_updates
+    from core.models import ChangeType
+    
+    updates = get_recent_updates(limit=200)
+    # Filter to only keep new_scope and removed_scope
+    scope_updates = [
+        u for u in updates 
+        if u.change_type in (ChangeType.NEW_SCOPE.value, ChangeType.REMOVED_SCOPE.value, ChangeType.NEW_PROGRAM.value)
+    ]
+
+    if not scope_updates:
+        await update.message.reply_text("❌ No recent scope changes logged in database yet.")
         return
 
+    # Group by platform and take top 3
+    grouped = {}
+    for u in scope_updates:
+        grouped.setdefault(u.platform, []).append(u)
+
     lines = [
-        "🔄 *Recent Scope & Bounty Updates*",
+        "🔄 *Recent Scope Updates (3 per platform)*",
         "━━━━━━━━━━━━━━━━━━━━━━",
     ]
-    for u in updates:
-        # Convert DB datetime (UTC) to UTC+7 (Asia/Ho_Chi_Minh)
-        from datetime import timedelta
-        local_time = u.detected_at + timedelta(hours=7)
-        ts = local_time.strftime("%m\\-%d %H:%M")
-        
-        platform = u.platform.title()
-        prog = u.program_name or u.program_handle
-        chg_type = u.change_type.upper().replace("_", " ")
-        detail = u.detail or ""
-        
-        lines.append(
-            f"📅 `{ts}` *{_escape(platform)}* — [{_escape(prog)}]({_escape(u.program_url)})\n"
-            f"  ▸ `{_escape(chg_type)}`: _{_escape(detail)}_\n"
-        )
+    
+    for platform, u_list in grouped.items():
+        platform_title = platform.title()
+        lines.append(f"\n*📡 {platform_title}*")
+        for u in u_list[:3]:
+            # Convert UTC to UTC+7 (Asia/Ho_Chi_Minh) and format as '2026-6-19 11:43 +07'
+            from datetime import timedelta
+            local_time = u.detected_at + timedelta(hours=7)
+            # %#m and %#d are Windows-specific single-digit formatting options,
+            # but we also support cross-platform replacement for compatibility.
+            ts = local_time.strftime("%Y\\-%#m\\-%#d %H:%M +07")
+            
+            prog = u.program_name or u.program_handle
+            chg_type = u.change_type.upper().replace("_", " ")
+            detail = u.detail or ""
+            
+            lines.append(
+                f"  • [{_escape(prog)}]({_escape(u.program_url)}) \\- `{_escape(chg_type)}`\n"
+                f"    _{_escape(detail)}_ \\(`{ts}`\\)"
+            )
 
     await update.message.reply_text("\n".join(lines), parse_mode=ParseMode.MARKDOWN_V2, disable_web_page_preview=True)
 

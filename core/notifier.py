@@ -184,6 +184,31 @@ async def _send_async(message: str) -> bool:
             return False
 
 
+def _run_coroutine(coro):
+    """Helper to run coroutines safely whether loop is already running or not."""
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        loop = None
+        
+    if loop and loop.is_running():
+        # Event loop is running (under AsyncIOScheduler/Telegram polling), schedule it as a task
+        # and wait for it synchronously inside a thread or use run_coroutine_threadsafe.
+        # Since we are in the main thread running the event loop, we can't block.
+        # The best way is to make our wrapper return immediately or schedule it.
+        # Let's schedule it on the loop.
+        asyncio.ensure_future(coro)
+        return True
+    else:
+        # Loop not running, run until complete
+        try:
+            old_loop = asyncio.get_event_loop()
+        except RuntimeError:
+            old_loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(old_loop)
+        return old_loop.run_until_complete(coro)
+
+
 def send_change(change: ScopeChange) -> bool:
     """Format and send a scope change notification. Returns True on success."""
     if change.change_type == ChangeType.NEW_PROGRAM:
@@ -191,7 +216,7 @@ def send_change(change: ScopeChange) -> bool:
     else:
         message = format_message(change)
 
-    return asyncio.run(_send_async(message))
+    return _run_coroutine(_send_async(message))
 
 
 def send_changes(changes: List[ScopeChange]) -> int:
@@ -238,4 +263,4 @@ def test_notification() -> bool:
         "✅ Telegram is configured correctly\\!\n"
         "_You will receive scope change alerts here\\._"
     )
-    return asyncio.run(_send_async(msg))
+    return _run_coroutine(_send_async(msg))
