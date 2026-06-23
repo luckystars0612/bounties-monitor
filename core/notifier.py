@@ -21,6 +21,7 @@ PLATFORM_EMOJI = {
     "bugcrowd":   "🔵",
     "intigriti":  "🟣",
     "yeswehack":  "🟡",
+    "federacy":   "🟢",
 }
 
 PLATFORM_LABEL = {
@@ -28,6 +29,7 @@ PLATFORM_LABEL = {
     "bugcrowd":   "Bugcrowd",
     "intigriti":  "Intigriti",
     "yeswehack":  "YesWeHack",
+    "federacy":   "Federacy",
 }
 
 CHANGE_EMOJI = {
